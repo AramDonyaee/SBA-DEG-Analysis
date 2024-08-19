@@ -9,9 +9,7 @@ This repository contains a detailed study aimed at identifying novel hub genes a
 - [Background](#background)
 - [Objectives](#objectives)
 - [Methodology](#methodology)
-- [Installation](#installation)
 - [Usage](#usage)
-- [To-Do](#to-do)
 
 ## Background
 
@@ -28,10 +26,10 @@ Small bowel adenocarcinoma is a rare but aggressive form of cancer that poses si
 ## Methodology
 
 1. **Data Acquisition**: 
-   - Collected gene expression data from relevant databases (e.g., GEO, TCGA).
+   - Collected gene expression data from GEO Omnibus
 
 2. **Differential Gene Expression Analysis**: 
-   - Utilized statistical methods (e.g., DESeq2, edgeR) to identify differentially expressed genes (DEGs) between tumor and normal samples.
+   - Utilized R limma package to identify differentially expressed genes (DEGs) between tumor and normal samples.
 
 3. **GO and KEGG Enrichment Analysis**: 
    - Performed GO and KEGG pathway analyses to determine the biological significance of the DEGs.
