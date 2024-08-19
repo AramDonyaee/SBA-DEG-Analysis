@@ -1,0 +1,264 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+    install.packages(c("BiocManager", "bit", "png", "tibble", "hms", "withr", "RColorBrewer", "pheatmap"))
+```
+
+
+```{r}
+BiocManager::install(c("GEOquery", "limma", "illuminaHumanv4.db", "dplyr"))
+```
+
+```{r}
+BiocManager::install("ComplexHeatmap")
+
+```
+
+
+```{r}
+library(GEOquery)
+library(limma)
+library(illuminaHumanv4.db)
+library(dplyr)
+```
+
+
+```{r}
+my_id <- "GSE61465"
+gse <- getGEO(my_id, GSEMatrix = TRUE)
+ex <- exprs(gse[[1]])
+```
+```{r}
+# Calculate quantiles
+qx <- as.numeric(quantile(ex, c(0.0, 0.25, 0.5, 0.75, 0.99, 1.0), na.rm = TRUE))
+
+# Determine if log2 transformation is appropriate
+LogC <- (qx[5] > 100) || (qx[6] - qx[1] > 50 && qx[2] > 0)
+
+if (LogC) {
+    # Replace values less than or equal to 0 with NaN
+    ex[ex <= 0] <- NaN
+    
+    # Apply log2 transformation
+    exprs(gse[[1]]) <- log2(ex)  # Correctly assign to the first ExpressionSet
+} else {
+    cat("Log2 transformation not applied due to quantile conditions.\n")
+}
+
+# Skip missing values
+data <- exprs(gse[[1]])[complete.cases(exprs(gse[[1]])), ]
+
+```
+
+
+```{r}
+# Define sample groups
+group <- factor(c(rep("Normal", 20), rep("Cancer", 25)))
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+```
+
+
+```{r}
+# Fit the model
+fit <- lmFit(data, design)
+contrast.matrix <- makeContrasts(Cancer-Normal, levels=design)
+fit2 <- contrasts.fit(fit, contrast.matrix)
+fit2 <- eBayes(fit2)
+
+# Extract DEGs
+degs <- topTable(fit2, adjust="fdr", number=Inf, p.value=0.001)
+degs <- degs[abs(degs$logFC) > 1, ]
+```
+
+
+```{r}
+# Select top 50 DEGs based on adjusted P-value
+top_degs <- degs[order(degs$adj.P.Val), ][1:50, ]
+heatmap_data <- data[rownames(top_degs), ]
+
+probe_ids <- rownames(heatmap_data)
+
+# Convert probe IDs to ENTREZ IDs
+entrez_ids <- AnnotationDbi::select(illuminaHumanv4.db, 
+                                    keys = probe_ids,
+                                    keytype = "PROBEID",
+                                    columns = "ENTREZID")
+
+# Remove rows with NA ENTREZ IDs
+entrez_ids <- entrez_ids[!is.na(entrez_ids$ENTREZID), ]
+
+
+# Extract the ENTREZ IDs
+gene_ids <- entrez_ids$ENTREZID
+
+# Assuming gene_ids contains the ENTREZ IDs obtained from the previous steps
+# Map ENTREZ IDs to Gene Symbols
+entrez_to_symbol <- AnnotationDbi::select(org.Hs.eg.db, 
+                                           keys = gene_ids, 
+                                           keytype = "ENTREZID", 
+                                           columns = "SYMBOL")
+
+# Remove duplicates if any
+entrez_to_symbol <- unique(entrez_to_symbol)
+
+# Merge ENTREZ IDs with their corresponding symbols
+merged_data <- merge(entrez_ids, entrez_to_symbol, by = "ENTREZID")
+
+# Create a named vector for mapping PROBEIDs to SYMBOLs
+probe_to_symbol <- setNames(merged_data$SYMBOL, merged_data$PROBEID)
+
+# Replace row names in heatmap_data with corresponding SYMBOLs
+rownames(heatmap_data) <- probe_to_symbol[rownames(heatmap_data)]
+
+# Ensure heatmap_data is a numeric matrix
+heatmap_data <- as.matrix(heatmap_data)
+
+
+```
+
+
+
+```{r}
+library(ComplexHeatmap)
+library(circlize)  # For colorRamp2
+
+# Create a clustered heatmap using ComplexHeatmap
+Heatmap(heatmap_data,
+        name = "Expression",
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        show_row_names = TRUE,
+        show_column_names = TRUE,
+        column_title = "Clustered Heatmap of Top 50 DEGs",
+        row_title = "Genes",
+        heatmap_legend_param = list(title = "Expression Level",
+                                    legend_direction = "horizontal",
+                                    legend_width = unit(3, "cm")),
+        row_names_gp = gpar(fontsize = 5),  # Font size for row names
+        column_names_gp = gpar(fontsize = 8, rot = 45),  # Rotate column names
+        row_names_side = "right",  # Position of row names
+        row_names_max_width = unit(5, "cm"),  # Set maximum width for row names
+        row_dend_width = unit(1, "cm"),  # Width of the row dendrogram
+        column_dend_height = unit(1, "cm"),
+        )  # Height of the column dendrogram
+```
+
+```{r}
+# Perform GO analysis
+go_results_BP <- enrichGO(gene = gene_ids, 
+                        OrgDb = org.Hs.eg.db,
+                        keyType = "ENTREZID",  # Use ENTREZID as keyType
+                        ont = "BP",            # Biological Process
+                        pAdjustMethod = "BH",
+                        qvalueCutoff = 0.05)
+
+# View results
+head(go_results_BP)
+```
+
+```{r}
+# Visualize results
+# Dot plot of top biological processes
+dotplot(go_results_BP, showCategory = 10, 
+        font.size = 8,           # Reduce font size
+        title = "Top 10 Biological Processes",
+        orderBy = "x",           # Order by enrichment ratio
+        label_format = 30)
+```
+
+```{r}
+# Perform GO analysis
+go_results_CC <- enrichGO(gene = gene_ids, 
+                        OrgDb = org.Hs.eg.db,
+                        keyType = "ENTREZID",  # Use ENTREZID as keyType
+                        ont = "CC",            # Cellular Component
+                        pAdjustMethod = "BH",
+                        qvalueCutoff = 0.05)
+
+# View results
+head(go_results_CC)
+```
+```{r}
+# Visualize results
+# Dot plot of top cellular components
+dotplot(go_results_CC, showCategory = 10, 
+        font.size = 8,           # Reduce font size
+        title = "Top 10 Cellular Components",
+        orderBy = "x",           # Order by enrichment ratio
+        label_format = 30)
+```
+```{r}
+# Perform GO analysis
+go_results_MF <- enrichGO(gene = gene_ids, 
+                        OrgDb = org.Hs.eg.db,
+                        keyType = "ENTREZID",  # Use ENTREZID as keyType
+                        ont = "MF",            # Molecular Function
+                        pAdjustMethod = "BH",
+                        qvalueCutoff = 0.05)
+
+# View results
+head(go_results_MF)
+```
+
+```{r}
+# Visualize results
+# Dot plot of top molecular functions
+dotplot(go_results_MF, showCategory = 10, 
+        font.size = 8,           # Reduce font size
+        title = "Top 10 Molecular Functions",
+        orderBy = "x",           # Order by enrichment ratio
+        label_format = 30)
+```
+
+```{r}
+# Perform KEGG analysis
+kegg_results <- enrichKEGG(gene = gene_ids, 
+                           organism = "hsa",     # Homo sapiens
+                           keyType = "kegg",     # Use KEGG IDs as keyType
+                           pvalueCutoff = 0.05, 
+                           pAdjustMethod = "BH", 
+                           qvalueCutoff = 0.2)
+
+# View results
+head(kegg_results)
+```
+
+```{r}
+# Visualize results
+# Dot plot of kegg results
+dotplot(kegg_results, showCategory = 10, 
+        font.size = 8,           # Reduce font size
+        title = "Top 10 KEGG",
+        orderBy = "x",           # Order by enrichment ratio
+        label_format = 30)
+```
+
+```{r}
+# Create a new column for regulation status
+degs$regulation <- "Neutral"  # Default category
+
+# Classify genes based on logFC and adjusted p-value
+degs$regulation[degs$logFC > 1 & degs$adj.P.Val < 0.001] <- "Upregulated"
+degs$regulation[degs$logFC < -1 & degs$adj.P.Val < 0.001] <- "Downregulated"
+
+# Check the unique values in the regulation column
+table(degs$regulation)
+```
+```{r}
+# Load necessary libraries
+library(ggplot2)
+
+# Generate the volcano plot
+ggplot(degs, aes(x = logFC, y = -log10(adj.P.Val), color = regulation)) +
+    geom_point(alpha = 0.6, size = 1.5) +
+    scale_color_manual(values = c("Upregulated" = "red", "Downregulated" = "blue", "Neutral" = "grey")) +
+    theme_minimal() +
+    labs(title = "Volcano Plot of DEGs", x = "Log2 Fold Change", y = "-Log10 Adjusted P-Value") +
+    theme(legend.title = element_blank())
+```
+
