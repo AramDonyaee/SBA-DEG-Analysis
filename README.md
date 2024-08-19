@@ -2,7 +2,7 @@ Identification of novel hub genes for Small Bowel Adenocarcinoma with integrated
 
 ## Overview
 
-This repository contains a detailed study aimed at identifying novel hub genes associated with small bowel (intestine) adenocarcinoma through differential gene expression analysis. The study utilizes Gene Ontology (GO) enrichment analysis, KEGG pathway analysis, and Protein-Protein Interaction (PPI) network construction using the STRING database. Additionally, we identify associated mRNA, transcription factors (TFs), and drugs linked to the hub genes using the NetworkAnalyst platform. The original microarray gene experssion data was obtained from GEO Omnibus. The accession number of the dataset is GSE61465 and is available on (here)[https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE61465]
+This repository contains a detailed study aimed at identifying novel hub genes associated with small bowel (intestine) adenocarcinoma through differential gene expression analysis. The study utilizes Gene Ontology (GO) enrichment analysis, KEGG pathway analysis, and Protein-Protein Interaction (PPI) network construction using the STRING database. Additionally, we identify associated mRNA, transcription factors (TFs), and drugs linked to the hub genes using the NetworkAnalyst platform. The original microarray gene experssion data was obtained from GEO Omnibus. The accession number of the dataset is GSE61465 and is available on [here](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE61465)
 
 ## Table of Contents
 
